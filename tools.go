@@ -203,6 +203,7 @@ type JSONResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
+// ReadJSON tries to read the body of a request and converts from json into a go data variable
 func (t *Tools) ReadJSON(w http.ResponseWriter, r *http.Request, data interface{}) error {
 	maxBytes := 1024 * 1024 // one meg
 	if t.MaxJSONSize != 0 {
@@ -262,4 +263,41 @@ func (t *Tools) ReadJSON(w http.ResponseWriter, r *http.Request, data interface{
 	}
 
 	return nil
+}
+
+// WriteJSON takes a response status code and arbitrary data and writes to the client
+func (t *Tools) WriteJSON(w http.ResponseWriter, status int, data interface{}, headers ...http.Header) error {
+	out, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	if len(headers) > 0 {
+		for key, value := range headers[0] {
+			w.Header()[key] = value
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, err = w.Write(out)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// ErrorJSON takes an error, and optionally a status code ,and generates and sends a JSON error message
+func (t *Tools) ErrorJSON(w http.ResponseWriter, err error, status ...int) error {
+	statusCode := http.StatusBadRequest
+
+	if len(status) > 0 {
+		statusCode = status[0]
+	}
+
+	var payload JSONResponse
+	payload.Error = true
+	payload.Message = err.Error()
+
+	return t.WriteJSON(w, statusCode, payload)
 }
